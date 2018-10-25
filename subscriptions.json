@@ -1,0 +1,15 @@
+{
+    "servers": {
+        "447977755615690753": {
+            "name": "Chad's Bots",
+            "channels": {
+                "501771154701418497": {
+                    "name": "maplestory2_test",
+                    "latest_official_news": "Discussion_41228",
+                    "latest_event_news": "Discussion_40888",
+                    "latest_blog_news": "Discussion_40545"
+                }
+            }
+        }
+    }
+}
