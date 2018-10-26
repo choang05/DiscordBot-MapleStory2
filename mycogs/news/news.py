@@ -79,6 +79,10 @@ class News(commands.Cog):
 
     async def _publish_news_to_channel(self, channel_id, news, subscriptions_data):
         channel = self.bot.get_channel(channel_id)
+        if channel is None:
+            print('Unable to fetch channel id: {}!'.format(channel_id))
+            return
+
         server = channel.guild
         channel_id = str(channel.id)
         server_id = str(server.id)
