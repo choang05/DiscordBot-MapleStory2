@@ -19,19 +19,18 @@ class News(commands.Cog):
 
     ###   VARIABLES ###
     json_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'subscriptions.json')
+    subscription_timer = 900 # 900 seconds = 15 minutes
 
     #   START HERE
     def __init__(self, bot):
         print('News bot initializing...')
         self.bot = bot
         self.task = bot.loop.create_task(self._start_news_check_scheduler())
-        self._start_news_check_scheduler()
-        self._broadcast_latest_news()
 
     async def _start_news_check_scheduler(self):
         while True:
             #   sleep until next task
-            await asyncio.sleep(900) #  900 = 15 minutes
+            await asyncio.sleep(self.subscription_timer) #  900 = 15 minutes
             
             print('Starting scheduled task: news check...')
             
@@ -92,21 +91,21 @@ class News(commands.Cog):
         latest_blog_news = news['latest_blog_news']
         
         #   check if this is the latest news for this channel. Check if latest_news is empty string
-        if not subscriptions_data['servers'][server_id]['channels'][channel_id]['latest_official_news']:
+        if  subscriptions_data['servers'][server_id]['channels'][channel_id]['latest_official_news'] != latest_official_news['id']:
             subscriptions_data['servers'][server_id]['channels'][channel_id]['latest_official_news'] = latest_official_news['id']
             self._save_subscriptions_data(subscriptions_data)
             await self._say_news_on_channel(channel, latest_official_news['date_created'], latest_official_news['title'], latest_official_news['link'])
         else:
             print('Latest official news already posted in {}:{}, doing nothing...'.format(server.name, channel.name))
 
-        if not subscriptions_data['servers'][server_id]['channels'][channel_id]['latest_event_news']:
+        if  subscriptions_data['servers'][server_id]['channels'][channel_id]['latest_event_news'] != latest_event_news['id']:
             subscriptions_data['servers'][server_id]['channels'][channel_id]['latest_event_news'] = latest_event_news['id']
             self._save_subscriptions_data(subscriptions_data)
             await self._say_news_on_channel(channel, latest_event_news['date_created'], latest_event_news['title'], latest_event_news['link'])
         else:
             print('Latest event news already posted in {}:{}, doing nothing...'.format(server.name, channel.name))
 
-        if not subscriptions_data['servers'][server_id]['channels'][channel_id]['latest_blog_news']:
+        if  subscriptions_data['servers'][server_id]['channels'][channel_id]['latest_blog_news'] != latest_blog_news['id']:
             subscriptions_data['servers'][server_id]['channels'][channel_id]['latest_blog_news'] = latest_blog_news['id']
             self._save_subscriptions_data(subscriptions_data)
             await self._say_news_on_channel(channel, latest_blog_news['date_created'], latest_blog_news['title'], latest_blog_news['link'])
@@ -161,11 +160,18 @@ class News(commands.Cog):
                     'date_created': date_created['datetime']
                 }
 
-                #   TODO return the latest, maybe improve code in the future
-                return item
-
                 #   append item to items list
                 news_items.append(item)
+
+            #   Return only the latest news
+            latest_news = news_items[0]
+            for item in news_items:
+                #   parse datetime string to datetime before comparing
+                item_date_created = dateutil.parser.parse(item['date_created'])
+                latest_news_date_created = dateutil.parser.parse(latest_news['date_created'])
+                if item_date_created > latest_news_date_created:
+                    latest_news = item
+            return latest_news
 
             #   from news items, only get the latest news
             # return news_items[0]
@@ -202,7 +208,6 @@ class News(commands.Cog):
         channel_id = str(channel.id)
 
         data = self._get_subscriptions_data()
-
         #   check if server exists...
         if server_id in data['servers']:
             #   check if channel is already subscribed...
@@ -225,10 +230,8 @@ class News(commands.Cog):
                 self._save_subscriptions_data(data)
 
                 await ctx.send('I will now post news in this channel!')
-                return
         #   else... add server and channel to database
         else:
-            return
             print('{} server not in database... adding to database...'.format(server.name))
             data['servers'][server_id] = {
                 "name": server.name,
@@ -243,7 +246,6 @@ class News(commands.Cog):
             }
             self._save_subscriptions_data(data)
             await ctx.send('I will now post news in this channel!')
-            return
     
     @news.command(aliases=["unsub"])
     async def unsubscribe(self, ctx: commands.Context):
