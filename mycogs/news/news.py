@@ -8,6 +8,7 @@ import json
 import os
 import asyncio
 import itertools
+from datetime import datetime
 
 class URL(Enum):
     Official_news_url = "http://forums.maplestory2.nexon.net/categories/official-news"
@@ -23,7 +24,7 @@ class News(commands.Cog):
 
     #   START HERE
     def __init__(self, bot):
-        print('News bot initializing...')
+        print('News cog initializing...')
         self.bot = bot
         self.task = bot.loop.create_task(self._start_news_check_scheduler())
 
@@ -32,18 +33,18 @@ class News(commands.Cog):
             #   sleep until next task
             await asyncio.sleep(self.subscription_timer) #  900 = 15 minutes
             
-            print('Starting scheduled task: news check...')
+            print('[TASK] Starting news check as of {}...'.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
             
             # your job code here
             await self._broadcast_latest_news()
 
+            print('Running next task cycle in {} seconds...'.format(self.subscription_timer))
             # return
 
     async def _broadcast_latest_news(self):
         """
             Returns the single latest news given a array of news dictionary   
         """
-
         #   check if there are any channels to subscribe to
         data = self._get_subscriptions_data()
         has_subscribers = False
@@ -52,7 +53,7 @@ class News(commands.Cog):
                 has_subscribers = True
                 break
         if not has_subscribers:
-            print('There are no subscribers! Doing nothing...')
+            await print('There are no subscribers! Doing nothing...')
             return
 
         print('There are subscribers, fetching latest news and publishing to subscribers...')
@@ -72,16 +73,16 @@ class News(commands.Cog):
                 channel_ids.append(int(channel_id))
 
         #   perform async tasks to broadcast to each channel id
-        args = [(channel_id, news, data) for channel_id in channel_ids]
+        args = [(channel_id, news) for channel_id in channel_ids]
         tasks = itertools.starmap(self._publish_news_to_channel, args)
         await asyncio.gather(*tasks)
 
-    async def _publish_news_to_channel(self, channel_id, news, subscriptions_data):
+    async def _publish_news_to_channel(self, channel_id, news):
         channel = self.bot.get_channel(channel_id)
         if channel is None:
-            print('Unable to fetch channel id: {}!'.format(channel_id))
+            await print('Unable to fetch channel id: {}!'.format(channel_id))
             return
-
+        subscriptions_data = self._get_subscriptions_data()
         server = channel.guild
         channel_id = str(channel.id)
         server_id = str(server.id)
@@ -90,27 +91,27 @@ class News(commands.Cog):
         latest_event_news = news['latest_event_news']
         latest_blog_news = news['latest_blog_news']
         
-        #   check if this is the latest news for this channel. Check if latest_news is empty string
+        #   check if this is the latest news for this channel
         if  subscriptions_data['servers'][server_id]['channels'][channel_id]['latest_official_news'] != latest_official_news['id']:
             subscriptions_data['servers'][server_id]['channels'][channel_id]['latest_official_news'] = latest_official_news['id']
             self._save_subscriptions_data(subscriptions_data)
             await self._say_news_on_channel(channel, latest_official_news['date_created'], latest_official_news['title'], latest_official_news['link'])
         else:
-            print('Latest official news already posted in {}:{}, doing nothing...'.format(server.name, channel.name))
+            print('Latest official news ({}) already posted in {}:{}, doing nothing...'.format(latest_official_news['title'], server.name, channel.name))
 
         if  subscriptions_data['servers'][server_id]['channels'][channel_id]['latest_event_news'] != latest_event_news['id']:
             subscriptions_data['servers'][server_id]['channels'][channel_id]['latest_event_news'] = latest_event_news['id']
             self._save_subscriptions_data(subscriptions_data)
             await self._say_news_on_channel(channel, latest_event_news['date_created'], latest_event_news['title'], latest_event_news['link'])
         else:
-            print('Latest event news already posted in {}:{}, doing nothing...'.format(server.name, channel.name))
+            print('Latest event news ({}) already posted in {}:{}, doing nothing...'.format(latest_event_news['title'], server.name, channel.name))
 
         if  subscriptions_data['servers'][server_id]['channels'][channel_id]['latest_blog_news'] != latest_blog_news['id']:
             subscriptions_data['servers'][server_id]['channels'][channel_id]['latest_blog_news'] = latest_blog_news['id']
             self._save_subscriptions_data(subscriptions_data)
             await self._say_news_on_channel(channel, latest_blog_news['date_created'], latest_blog_news['title'], latest_blog_news['link'])
         else:
-            print('Latest blog news already posted in {}:{}, doing nothing...'.format(server.name, channel.name))
+            print('Latest blog news ({}) already posted in {}:{}, doing nothing...'.format(latest_blog_news['title'], server.name, channel.name))
 
     async def _say_news_on_channel(self, channel, date, title, link):
         #   message builder
@@ -213,7 +214,6 @@ class News(commands.Cog):
             #   check if channel is already subscribed...
             if channel_id in data['servers'][server_id]['channels']:
                 await ctx.send('This channel is already subscribed!')
-                return
             #   else... add channel to database
             else:
                 print('{} channel not in database... adding to database...'.format(channel.name))
@@ -253,7 +253,7 @@ class News(commands.Cog):
         channel = ctx.message.channel
         server_id = str(server.id)
         channel_id = str(channel.id)
-        json_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'subscriptions.json')
+        # json_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'subscriptions.json')
 
         data = self._get_subscriptions_data()
 
