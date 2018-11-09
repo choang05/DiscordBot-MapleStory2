@@ -29,6 +29,7 @@ class News(commands.Cog):
         self.task = bot.loop.create_task(self._start_news_check_scheduler())
 
     async def _start_news_check_scheduler(self):
+        print('[TASK] Starting news scheduler every {} seconds...'.format(self.subscription_timer))
         while True:
             #   sleep until next task
             await asyncio.sleep(self.subscription_timer) #  900 = 15 minutes
@@ -76,12 +77,18 @@ class News(commands.Cog):
         args = [(channel_id, news) for channel_id in channel_ids]
         tasks = itertools.starmap(self._publish_news_to_channel, args)
         await asyncio.gather(*tasks)
+        # for channel_id in channel_ids:
+        #     await self._publish_news_to_channel(channel_id, news)
 
     async def _publish_news_to_channel(self, channel_id, news):
-        channel = self.bot.get_channel(channel_id)
+        channel = self.bot.get_channel(int(channel_id))
         if channel is None:
-            await print('Unable to fetch channel id: {}!'.format(channel_id))
+            print('Unable to fetch channel id: {}!'.format(channel_id))
             return
+        elif not channel.permissions_for(channel.guild.me).send_messages:
+            print('No permission to post in this channel: {}, id: {}!'.format(channel, channel_id))
+            return
+
         subscriptions_data = self._get_subscriptions_data()
         server = channel.guild
         channel_id = str(channel.id)
@@ -95,23 +102,26 @@ class News(commands.Cog):
         if  subscriptions_data['servers'][server_id]['channels'][channel_id]['latest_official_news'] != latest_official_news['id']:
             subscriptions_data['servers'][server_id]['channels'][channel_id]['latest_official_news'] = latest_official_news['id']
             self._save_subscriptions_data(subscriptions_data)
+            print('Posting "{}" news to {}, {}'.format(latest_official_news['title'], server.name, channel.name))
             await self._say_news_on_channel(channel, latest_official_news['date_created'], latest_official_news['title'], latest_official_news['link'])
         else:
-            print('Latest official news ({}) already posted in {}:{}, doing nothing...'.format(latest_official_news['title'], server.name, channel.name))
+            print('Latest official news ({}) already posted in {}, {}, doing nothing...'.format(latest_official_news['title'], server.name, channel.name))
 
         if  subscriptions_data['servers'][server_id]['channels'][channel_id]['latest_event_news'] != latest_event_news['id']:
             subscriptions_data['servers'][server_id]['channels'][channel_id]['latest_event_news'] = latest_event_news['id']
             self._save_subscriptions_data(subscriptions_data)
+            print('Posting "{}" news to {}, {}'.format(latest_official_news['title'], server.name, channel.name))
             await self._say_news_on_channel(channel, latest_event_news['date_created'], latest_event_news['title'], latest_event_news['link'])
         else:
-            print('Latest event news ({}) already posted in {}:{}, doing nothing...'.format(latest_event_news['title'], server.name, channel.name))
-
+            print('Latest event news ({}) already posted in {}, {}, doing nothing...'.format(latest_event_news['title'], server.name, channel.name))
+            
         if  subscriptions_data['servers'][server_id]['channels'][channel_id]['latest_blog_news'] != latest_blog_news['id']:
             subscriptions_data['servers'][server_id]['channels'][channel_id]['latest_blog_news'] = latest_blog_news['id']
             self._save_subscriptions_data(subscriptions_data)
+            print('Posting "{}" news to {}, {}'.format(latest_official_news['title'], server.name, channel.name))
             await self._say_news_on_channel(channel, latest_blog_news['date_created'], latest_blog_news['title'], latest_blog_news['link'])
         else:
-            print('Latest blog news ({}) already posted in {}:{}, doing nothing...'.format(latest_blog_news['title'], server.name, channel.name))
+            print('Latest blog news ({}) already posted in {}, {}, doing nothing...'.format(latest_blog_news['title'], server.name, channel.name))
 
     async def _say_news_on_channel(self, channel, date, title, link):
         #   message builder
